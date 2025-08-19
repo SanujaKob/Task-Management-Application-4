@@ -8,6 +8,7 @@ router = APIRouter()
 
 class Role(str, Enum):
     admin = "admin"
+    manager = "manager"
     user = "user"
 
 class UserBase(BaseModel):
