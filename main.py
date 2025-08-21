@@ -5,7 +5,7 @@ import models  # ensures SQLAlchemy models are registered
 from routers.task import router as tasks_router
 from routers.user import router as employees_router
 
-app = FastAPI(title="Task Manager")
+app = FastAPI(title="ABACUS Task Management Application")
 
 # create tables
 Base.metadata.create_all(bind=engine)
