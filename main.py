@@ -1,11 +1,15 @@
-# main.py
 from fastapi import FastAPI
+from database import Base, engine
+import models  # ensures SQLAlchemy models are registered
 
 from routers.task import router as tasks_router
-from routers.user import router as employees_router  # file 'user.py' but employee endpoints
+from routers.user import router as employees_router
 
 app = FastAPI(title="Task Manager")
 
-# Attach routers
+# create tables
+Base.metadata.create_all(bind=engine)
+
+# mount routers
 app.include_router(tasks_router, prefix="/tasks", tags=["Tasks"])
 app.include_router(employees_router, prefix="/employees", tags=["Employees"])
