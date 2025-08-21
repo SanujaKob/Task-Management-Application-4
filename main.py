@@ -1,92 +1,118 @@
 from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-from sentry_sdk import get_current_scope
+from fastapi import FastAPI, HTTPException, Response, status
 
+# ---- Import your updated models ----
 from data_models.task import TaskCreate, TaskOut, TaskUpdate
-from data_models.user import Role, UserCreate, UserOut, UserUpdate
+from data_models.user import Role, EmployeeCreate, EmployeeOut, EmployeeUpdate
 
 app = FastAPI(title="Task Manager")
 
-# in-memory "database"
-fake_db: List[TaskOut] = []
+# =====================================================
+# In-memory "databases"
+# =====================================================
+tasks_db: Dict[UUID, TaskOut] = {}
+employees_db: Dict[UUID, dict] = {}
 
-@app.post("/tasks/", response_model=TaskOut)
-def create_task(task: TaskCreate):
-    new_task = TaskOut(**task.dict())
-    fake_db.append(new_task)
+# =====================================================
+# TASKS
+# =====================================================
+
+@app.post("/tasks", response_model=TaskOut, status_code=status.HTTP_201_CREATED, tags=["Tasks"])
+def create_task(payload: TaskCreate):
+    """
+    Create a task. NOTE: TaskCreate requires a UUID id (mandatory).
+    """
+    # Ensure no duplicates
+    if payload.id in tasks_db:
+        raise HTTPException(status_code=400, detail="Task with this ID already exists")
+
+    # TaskOut will add timestamps; keep the provided id and other fields
+    new_task = TaskOut(**payload.model_dump())
+    tasks_db[new_task.id] = new_task
     return new_task
 
-@app.get("/tasks/", response_model=List[TaskOut])
+
+@app.get("/tasks", response_model=List[TaskOut], tags=["Tasks"])
 def list_tasks():
-    return fake_db
+    return list(tasks_db.values())
 
-@app.get("/tasks/{task_id}", response_model=TaskOut)
+
+@app.get("/tasks/{task_id}", response_model=TaskOut, tags=["Tasks"])
 def get_task(task_id: UUID):
-    for task in fake_db:
-        if task.id == task_id:
-            return task
-    raise HTTPException(status_code=404, detail="Task not found")
+    task = tasks_db.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
-@app.put("/tasks/{task_id}", response_model=TaskOut)
-def update_task(task_id: UUID, update: TaskUpdate):
-    for i, task in enumerate(fake_db):
-        if task.id == task_id:
-            updated_data = update.dict(exclude_unset=True)
-            updated_task = task.copy(update=updated_data)
-            fake_db[i] = updated_task
-            return updated_task
-    raise HTTPException(status_code=404, detail="Task not found")
 
-@app.delete("/tasks/{task_id}")
+@app.put("/tasks/{task_id}", response_model=TaskOut, tags=["Tasks"])
+def update_task(task_id: UUID, payload: TaskUpdate):
+    """
+    Full/partial update via TaskUpdate (all fields optional).
+    """
+    existing = tasks_db.get(task_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    updated_data = payload.model_dump(exclude_unset=True)
+    updated_task = existing.model_copy(update=updated_data)
+    tasks_db[task_id] = updated_task
+    return updated_task
+
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
 def delete_task(task_id: UUID):
-    for i, task in enumerate(fake_db):
-        if task.id == task_id:
-            fake_db.pop(i)
-            return {"message": "Task deleted"}
-    raise HTTPException(status_code=404, detail="Task not found")
+    if task_id not in tasks_db:
+        raise HTTPException(status_code=404, detail="Task not found")
+    del tasks_db[task_id]
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# Fake in-memory DB for User Endpoints
-# ---------------------------
-users_db: Dict[UUID, Dict] = {}
+# =====================================================
+# EMPLOYEES
+# =====================================================
 
-# For User Endpoints ====
-
-@app.post("/users", response_model=UserOut)
-def create_user(payload: UserCreate):
+@app.post("/employees", response_model=EmployeeOut, status_code=status.HTTP_201_CREATED, tags=["Employees"])
+def create_employee(payload: EmployeeCreate):
+    """
+    Create an employee. We generate the UUID here.
+    """
     new_id = uuid4()
-    record = payload.dict()
+    record = payload.model_dump()
     record["id"] = new_id
-    users_db[new_id] = record
-    return UserOut(**record)
+    employees_db[new_id] = record
+    return EmployeeOut(**record)
 
-@app.get("/users", response_model=List[UserOut])
-def list_users():
-    return [UserOut(**u) for u in users_db.values()]
 
-@app.get("/users/{user_id}", response_model=UserOut)
-def get_user(user_id: UUID):
-    user = users_db.get(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return UserOut(**user)
+@app.get("/employees", response_model=List[EmployeeOut], tags=["Employees"])
+def list_employees():
+    return [EmployeeOut(**e) for e in employees_db.values()]
 
-@app.patch("/users/{user_id}", response_model=UserOut)
-def update_user(user_id: UUID, payload: UserUpdate):
-    user = users_db.get(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
 
-    update_data = payload.dict(exclude_unset=True)
-    user.update(update_data)
-    users_db[user_id] = user
-    return UserOut(**user)
+@app.get("/employees/{employee_id}", response_model=EmployeeOut, tags=["Employees"])
+def get_employee(employee_id: UUID):
+    emp = employees_db.get(employee_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return EmployeeOut(**emp)
 
-@app.delete("/users/{user_id}", status_code=204)
-def delete_user(user_id: UUID):
-    if user_id not in users_db:
-        raise HTTPException(status_code=404, detail="User not found")
-    del users_db[user_id]
-    return None
+
+@app.patch("/employees/{employee_id}", response_model=EmployeeOut, tags=["Employees"])
+def update_employee(employee_id: UUID, payload: EmployeeUpdate):
+    emp = employees_db.get(employee_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    emp.update(update_data)
+    employees_db[employee_id] = emp
+    return EmployeeOut(**emp)
+
+
+@app.delete("/employees/{employee_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Employees"])
+def delete_employee(employee_id: UUID):
+    if employee_id not in employees_db:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    del employees_db[employee_id]
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

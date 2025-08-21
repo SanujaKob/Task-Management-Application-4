@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from datetime import date, datetime
 from typing import Optional
 from enum import Enum
-from uuid import UUID, uuid4
+from uuid import UUID
 
 # ---- Enums ----
 class Priority(str, Enum):
@@ -19,7 +19,7 @@ class Status(str, Enum):
     rejected = "rejected"
     re_submit = "re_submit"
 
-# ---- Base (shared fields) ----
+# ---- Common shared fields ----
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
@@ -27,13 +27,19 @@ class TaskBase(BaseModel):
     status: Status = Status.not_started
     progress: int = Field(0, ge=0, le=100)
     due_date: Optional[date] = None
-    assignee_id: Optional[int] = None
+    assignee_id: Optional[int] = None  # can switch to UUID later
+
+# ---- Mix-in that forces a mandatory UUID ----
+class TaskIdMixin(BaseModel):
+    id: UUID  # REQUIRED (no default_factory)
 
 # ---- For POST /tasks ----
-class TaskCreate(TaskBase):
+# Client MUST supply a UUID for the task they create.
+class TaskCreate(TaskIdMixin, TaskBase):
     pass
 
 # ---- For PATCH/PUT /tasks/{id} ----
+# Only changing fields; id typically comes from the URL/path.
 class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
@@ -43,8 +49,7 @@ class TaskUpdate(BaseModel):
     due_date: Optional[date] = None
     assignee_id: Optional[int] = None
 
-# ---- What you send back to Manager ----
-class TaskOut(TaskBase):
-    id: UUID = Field(default_factory=uuid4)
+# ---- What you send back to Manager/UI ----
+class TaskOut(TaskIdMixin, TaskBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
