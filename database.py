@@ -1,6 +1,7 @@
 # database.py
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.engine import Engine
 
 # SQLite DB file (created in the project folder)
 SQLALCHEMY_DATABASE_URL = "sqlite:///./task_manager.db"
@@ -23,3 +24,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    try:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+    except Exception:
+        pass

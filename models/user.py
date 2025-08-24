@@ -1,17 +1,21 @@
 # models/user.py
 from __future__ import annotations
-from database import Base
+
 from datetime import datetime
 from uuid import uuid4, UUID
 import enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 # --- SQLAlchemy imports ---
 from sqlalchemy import Column, String, Enum as SAEnum, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 # Adjust this import path if your Base is elsewhere
 from database import Base
+
+# Only import Task type for type checkers to avoid circular import at runtime
+if TYPE_CHECKING:
+    from models.task import Task
 
 # ==========================
 # Enums (shared by DB & API)
@@ -42,9 +46,15 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # If you link tasks later:
-    # tasks = relationship("Task", back_populates="assignee")
-
+    # --- Linkage to tasks (assignee) ---
+    # On Task model, define:
+    #   assignee_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    #   assignee    = relationship("User", back_populates="tasks", lazy="joined")
+    tasks: Mapped[list["Task"]] = relationship(
+        "Task",
+        back_populates="assignee",
+        passive_deletes=True,   # pairs with ON DELETE on Task FK if you enable it
+    )
 
 # ==========================
 # Pydantic Schemas (v2)
@@ -75,9 +85,7 @@ class EmployeeUpdate(BaseModel):
 class EmployeeOut(EmployeeBase):
     # DB stores id as str(UUID), but Pydantic will coerce to UUID on output
     id: UUID
-
     model_config = ConfigDict(from_attributes=True)
-
 
 # Optional: convenient exports
 __all__ = [

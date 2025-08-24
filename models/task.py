@@ -1,15 +1,19 @@
 # models/task.py
 from __future__ import annotations
-from database import Base
+
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 import enum
 
 # --- SQLAlchemy ---
 from sqlalchemy import Column, String, Integer, Enum as SAEnum, Date, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
+
 from database import Base  # adjust import path if needed
+
+if TYPE_CHECKING:
+    from models.user import User
 
 # ==========================
 # Enums (shared DB & API)
@@ -26,7 +30,7 @@ class Status(str, enum.Enum):
     completed = "completed"
     approved = "approved"
     rejected = "rejected"
-    re_submit = "re_submit"  # keep separate value (distinct from 'rejected')
+    re_submit = "re_submit"  # distinct from 'rejected'
 
 # ==========================
 # SQLAlchemy Database Model
@@ -46,15 +50,23 @@ class Task(Base):
 
     due_date = Column(Date, nullable=True)
 
-    # IMPORTANT: align with your consolidated User model (table 'users', class 'User')
-    assignee_id = Column(String(36), ForeignKey("users.id"), nullable=True)
-    assignee    = relationship("User", back_populates="tasks", lazy="joined")
+    # --- Linkage to User (assignee) ---
+    # FK ensures assignee_id references users.id.
+    # ondelete="SET NULL" lets you delete a user without deleting tasks (task becomes unassigned).
+    assignee_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    assignee: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="tasks",
+        lazy="joined",
+    )
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-# (Optional) If you want the reverse side to work immediately, ensure in app/models/user.py:
-# tasks = relationship("Task", back_populates="assignee", cascade="all, delete-orphan")
 
 # ==========================
 # Pydantic Schemas (v2)
