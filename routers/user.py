@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.user import User, Role
-from data_models.user import EmployeeCreate, EmployeeUpdate, EmployeeOut
+from models.user import EmployeeCreate, EmployeeUpdate, EmployeeOut
 
 router = APIRouter()
 

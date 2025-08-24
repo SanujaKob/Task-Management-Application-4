@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 # SQLite DB file (created in the project folder)
 SQLALCHEMY_DATABASE_URL = "sqlite:///./task_manager.db"
 
-# For SQLite, this flag avoids thread errors with the dev server
+# Avoids thread errors with the dev server
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )

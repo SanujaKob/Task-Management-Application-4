@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Response, status
 
-from data_models.task import TaskCreate, TaskOut, TaskUpdate
+from models.task import TaskCreate, TaskOut, TaskUpdate, Task
 
 router = APIRouter()
 
